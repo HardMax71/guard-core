@@ -8,6 +8,15 @@ ___
 Unreleased
 ----------
 
+___
+
+v4.0.2 (2026-09-12)
+-------------------
+
+ReDoS validator probe pairing and timing fixes, and a load-scaled verdict deadline (v4.0.2)
+-------------------------------------------------------------------------------------------
+
+
 ### Fixed
 
 - **The ReDoS validator missed a quadratic shape.** The class-intersection probe only paired adjacent quantified classes, so two `\s*` runs separated by an empty-capable class such as `[\);]*` produced no probe and the pattern was certified safe. Quantified classes now pair across any run of atoms that can match empty, and the probe rejects the shape.

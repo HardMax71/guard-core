@@ -10,6 +10,22 @@ Release Notes
 
 ___
 
+v4.0.2 (2026-09-12)
+-------------------
+
+ReDoS validator probe pairing and timing fixes, and a load-scaled verdict deadline (v4.0.2)
+-------------------------------------------------------------------------------------------
+
+
+### Fixed
+
+- **The ReDoS validator missed a quadratic shape.** The class-intersection probe only paired adjacent quantified classes; two `\s*` runs separated by an empty-capable class such as `[\);]*` produced no probe and the pattern was certified safe. Quantified classes now pair across any run of atoms that can match empty, and the probe rejects the shape.
+- **The sqli comment-terminator builtin was quadratic on a quote followed by whitespace.** `'\s*[\);]*\s*--` is now `'\s*(?:[\);]+\s*)?--`, the same language, linear on that input.
+- **The hardened validator's own probe timing could exceed its wall-clock budget.** Probes below the noise floor now take a single sample, probes at or above it keep the full five, and a deterministic stride sample bounds the timed probe sets when an enumeration explodes; the cmd_injection backtick builtin validates in about six seconds instead of twenty-two, with the same probe coverage behind the sampled sets.
+- **The verdict deadline now scales with the measured host load.** It multiplies by the same load factor that normalizes sample times, floored at the idle-host behavior and ceiled at 240 seconds, so a genuinely quadratic pattern is verdicted on a loaded runner instead of rejected with a timeout.
+
+___
+
 v4.0.1 (2026-09-05)
 -------------------
 
