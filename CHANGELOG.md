@@ -13,16 +13,22 @@ ___
 v4.0.2 (2026-09-12)
 -------------------
 
-ReDoS validator probe pairing and timing fixes, and a load-scaled verdict deadline (v4.0.2)
--------------------------------------------------------------------------------------------
+Bounded built-in pattern matchers, ReDoS validator hardening, and a load-scaled verdict deadline (v4.0.2)
+---------------------------------------------------------------------------------------------------------
 
 
 ### Fixed
 
-- **The ReDoS validator missed a quadratic shape.** The class-intersection probe only paired adjacent quantified classes, so two `\s*` runs separated by an empty-capable class such as `[\);]*` produced no probe and the pattern was certified safe. Quantified classes now pair across any run of atoms that can match empty, and the probe rejects the shape.
-- **The sqli comment-terminator builtin was quadratic on a quote followed by whitespace.** `'\s*[\);]*\s*--` is now `'\s*(?:[\);]+\s*)?--`, the same language, linear on that input; the quadratic cost was already bounded on the wire by the scan cap.
-- **The hardened validator's own probe timing could exceed its wall-clock budget.** Expanding probe coverage multiplied the timed probe sets (one builtin enumerated 1783 of them), and every probe was sampled five times per size, so validating a complex builtin cost tens of seconds on an idle host and the CPU-load detection gate failed killable-subprocess timeouts. Probes below the noise floor now take a single sample (their growth ratio is forced to 1.0 by the verdict, so one sample decides them), probes at or above it keep the full five, and a deterministic stride sample bounds the timed probe sets when an enumeration explodes; the cmd_injection backtick builtin validates in about six seconds instead of twenty-two, with the same probe coverage behind the sampled sets.
-- **The verdict deadline now scales with the measured host load.** Sample times were already normalized by a load factor from a reference scan, but the 40-second wall-clock deadline was fixed, so measuring a genuinely quadratic pattern (about two seconds of CPU per probe set at 32000 chars) blew the deadline on a loaded runner and the pattern was rejected with a timeout instead of verdicted: the cap-aware canaries that must accept at a 512-char cap failed under the CPU-load gate. The verdict deadline now multiplies by the same measured load factor, floored at the idle-host behavior and ceiled at 240 seconds so no test can outrun its per-test wall budget.
+- **Several built-in suspicious-content matchers were quadratic.** The file-upload, template-engine, XML/XXE, pickle-global, cmd-injection, and load-file builtins now run as bounded scan-window matchers with the same detection language, verified by differential regressions and bounded timing checks in both trees.
+- **The ReDoS validator missed a quadratic shape.** Quantified classes now pair across any run of atoms that can match empty, character sets are exact interval sets over the full code space, membership is decided by the regex engine on the compiled node, and builtins are certified with the compile flags they ship with.
+- **The sqli comment-terminator builtin was quadratic on a quote followed by whitespace.** `'\s*[\);]*\s*--` is now `'\s*(?:[\);]+\s*)?--`, the same language, linear on that input.
+- **The validator's own probe timing could exceed its wall-clock budget.** Probes below the noise floor take a single sample, a stride sample bounds exploding enumerations, and the cmd_injection backtick builtin validates in about six seconds instead of twenty-two.
+- **The verdict deadline was a fixed 40 seconds regardless of host load.** It now scales by the measured load factor, floored at idle-host behavior and ceiled at 240 seconds, so a genuinely quadratic pattern is verdicted on a loaded runner instead of rejected with a timeout.
+
+### Changed
+
+- **Anomaly detection skips the variance computation when the latest execution time is at or below the rolling average.**
+- **CI and test instrumentation.** The `redos_timing` gate runs as four shards with one assembled PR comment, the ecosystem gate uploads its pytest output regardless of outcome, the sync check propagates generated-code check failures, CPU-bound budgets measure minimum process CPU time, and guard_core logger levels are restored after every test.
 
 ___
 

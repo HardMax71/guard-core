@@ -13,16 +13,22 @@ ___
 v4.0.2 (2026-09-12)
 -------------------
 
-ReDoS validator probe pairing and timing fixes, and a load-scaled verdict deadline (v4.0.2)
--------------------------------------------------------------------------------------------
+Bounded built-in pattern matchers, ReDoS validator hardening, and a load-scaled verdict deadline (v4.0.2)
+---------------------------------------------------------------------------------------------------------
 
 
 ### Fixed
 
-- **The ReDoS validator missed a quadratic shape.** The class-intersection probe only paired adjacent quantified classes; two `\s*` runs separated by an empty-capable class such as `[\);]*` produced no probe and the pattern was certified safe. Quantified classes now pair across any run of atoms that can match empty, and the probe rejects the shape.
+- **Several built-in suspicious-content matchers were quadratic.** The file-upload, template-engine, XML/XXE, pickle-global, cmd-injection, and load-file builtins now run as bounded scan-window matchers with the same detection language.
+- **The ReDoS validator missed a quadratic shape.** Quantified classes now pair across any run of atoms that can match empty, character sets are exact interval sets over the full code space, membership is decided by the regex engine, and builtins are certified with the compile flags they ship with.
 - **The sqli comment-terminator builtin was quadratic on a quote followed by whitespace.** `'\s*[\);]*\s*--` is now `'\s*(?:[\);]+\s*)?--`, the same language, linear on that input.
-- **The hardened validator's own probe timing could exceed its wall-clock budget.** Probes below the noise floor now take a single sample, probes at or above it keep the full five, and a deterministic stride sample bounds the timed probe sets when an enumeration explodes; the cmd_injection backtick builtin validates in about six seconds instead of twenty-two, with the same probe coverage behind the sampled sets.
-- **The verdict deadline now scales with the measured host load.** It multiplies by the same load factor that normalizes sample times, floored at the idle-host behavior and ceiled at 240 seconds, so a genuinely quadratic pattern is verdicted on a loaded runner instead of rejected with a timeout.
+- **The validator's own probe timing could exceed its wall-clock budget.** Probes below the noise floor take a single sample, a stride sample bounds exploding enumerations, and the cmd_injection backtick builtin validates in about six seconds instead of twenty-two.
+- **The verdict deadline was a fixed 40 seconds regardless of host load.** It now scales by the measured load factor, floored at idle-host behavior and ceiled at 240 seconds.
+
+### Changed
+
+- **Anomaly detection skips the variance computation when the latest execution time is at or below the rolling average.**
+- **CI and test instrumentation.** The `redos_timing` gate runs as four shards with one assembled PR comment, the ecosystem gate uploads its pytest output regardless of outcome, the sync check propagates generated-code check failures, CPU-bound budgets measure minimum process CPU time, and guard_core logger levels are restored after every test.
 
 ___
 
