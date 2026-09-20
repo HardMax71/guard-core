@@ -37,6 +37,17 @@ pip install "guard-core[logfire]"   # Logfire export
 
 `guard-agent` is an optional runtime dependency pulled in by adapters when `enable_agent=True`; it is not a hard dependency of guard-core.
 
+## Setup
+
+Working in this repository (not just consuming the package):
+
+```bash
+make install-dev           # uv sync with dev extras
+uv run pre-commit install  # ruff, mypy, vulture, bandit, safety, radon, xenon, deptry
+make local-test            # REDIS_URL=redis://localhost:6379 pytest with a 100% coverage gate
+make sync                  # regenerate guard_core/sync/ (scripts/unasync.py); check-sync verifies
+```
+
 ## SecurityConfig
 
 All behavior is controlled through one Pydantic model. Construct it once and pass it to your adapter's middleware/initializer.
@@ -183,3 +194,13 @@ See [the telemetry reference](references/telemetry.md) for the full config surfa
 ## Tooling
 
 The repo uses uv, Ruff, mypy, pytest (with `pytest-asyncio`, `asyncio_mode="auto"`), and a 100% coverage gate (`make local-test`). Run the full suite before claiming green; subset runs have shipped cross-file contract bugs. Integration tests are marked `integration` and skipped by default.
+
+## Related Projects
+
+* [fastapi-guard](https://github.com/rennf93/fastapi-guard): ASGI middleware adapter for FastAPI.
+* [flaskapi-guard](https://github.com/rennf93/flaskapi-guard): Flask extension adapter over the sync mirror.
+* [djapi-guard](https://github.com/rennf93/djapi-guard): Django middleware adapter over the sync mirror.
+* [tornadoapi-guard](https://github.com/rennf93/tornadoapi-guard): Tornado handler/middleware adapter.
+* [guard-agent](https://github.com/rennf93/guard-agent): Telemetry and monitoring agent the adapters ship events with.
+* [guard-core-mcp](https://github.com/rennf93/guard-core-mcp): MCP server answering Guard questions from the installed libraries.
+* [guard-core-app](https://github.com/rennf93/guard-core-app): SaaS platform the agent reports to (API, dashboard, playground).

@@ -210,8 +210,6 @@ __marimo__/
 manual_testing/
 ZZZ/
 .claude/
-AGENTS.md
-CLAUDE.md
 tests/attack_simulation/out/
 .unasync_check_tmp_*/
 tests/live_smoke/stack/app/
@@ -225,3 +223,5 @@ tests/redaction_gate/genprobe_results.json
 tests/redaction_gate/scenario_tmp/
 
 scratchpad/
+.mimosa/
+.video_agent/
