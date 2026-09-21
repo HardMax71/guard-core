@@ -19,7 +19,7 @@ Guard Core is the framework-agnostic engine library that powers the Guard ecosys
 
 ## Ecosystem Position
 
-```
+```text
 guard-core (this repo)        <- Engine: all security logic lives here
 ├── fastapi-guard             <- Adapter: ASGI middleware for FastAPI
 ├── flaskapi-guard            <- Adapter: Flask extension over the sync mirror
@@ -142,7 +142,7 @@ Services: `guard-core` (test runner) and `redis` (cache).
 
 ## Project Structure
 
-```
+```text
 guard-core/
 ├── guard_core/            # Main package (import name, async source)
 │   ├── __init__.py
@@ -475,7 +475,7 @@ class MyCustomCheck(SecurityCheck):
         return None
 ```
 
-2. **Register in pipeline**
+2. Register in pipeline
 
 3. **Export** in `guard_core/core/checks/__init__.py`
 
