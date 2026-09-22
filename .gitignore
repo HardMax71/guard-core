@@ -225,3 +225,8 @@ tests/redaction_gate/scenario_tmp/
 scratchpad/
 .mimosa/
 .video_agent/
+
+# interop harness run artifacts (code + README are tracked)
+interop/last_run.json
+interop/reports/
+interop/__pycache__/
