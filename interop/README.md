@@ -67,16 +67,16 @@ the others, and all values carry non-integer fractions (microseconds).
 
 ## Known contract boundaries (documented by checks, not bugs)
 
-- `banned_networks:*` has NO reader in any implementation, including the
-  Python reference (specs/09 discrepancy 3). Cross-impl network-ban checks
-  are wire-level via each port's own storage handler plus its own
-  canonical-network parser; the manager-level negative is asserted too.
-- Rate-limit zset members are opaque; scores are the observable floats.
-  PHP `(string)` casts quantize to 14 significant digits (noted in the PHP
-  repo's local KNOWN_GAPS.md; no parse divergence, no observable effect).
-- `cloud_ip_v2` payloads are byte-exact across all three writers since the
-  PHP port adopted Python's `", "` list separators (same category as the
-  earlier JSON_UNESCAPED_SLASHES fix).
++ `banned_networks:*` has NO reader in any implementation, including the
++ Python reference (specs/09 discrepancy 3). Cross-impl network-ban checks
++ are wire-level via each port's own storage handler plus its own
++ canonical-network parser; the manager-level negative is asserted too.
++ Rate-limit zset members are opaque; scores are the observable floats.
++ PHP `(string)` casts quantize to 14 significant digits (noted in the PHP
++ repo's local KNOWN_GAPS.md; no parse divergence, no observable effect).
++ `cloud_ip_v2` payloads are byte-exact across all three writers since the
++ PHP port adopted Python's `", "` list separators (same category as the
++ earlier JSON_UNESCAPED_SLASHES fix).
 
 ## Rust binary-body vectors
 
