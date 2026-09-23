@@ -10,14 +10,26 @@ _JSON_LEAF_START_CHARS = frozenset("{[")
 
 
 def _sanitize_for_log(value: str) -> str:
+    r"""Make a string safe to emit on any console encoding.
+
+    Control characters become ``\xNN`` escapes and every non-ASCII character
+    becomes a ``\uXXXX`` (or ``\xNN`` for surrogate-escaped bytes) escape, so
+    the result is pure ASCII and can never raise ``UnicodeEncodeError`` on
+    legacy code pages such as Windows cp1252.
+    """
     if not value:
         return value
     sanitized = value.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
-    sanitized = "".join(
-        char if ord(char) >= 32 or char in "\t\n\r" else f"\\x{ord(char):02x}"
-        for char in sanitized
-    )
-    return sanitized
+    out: list[str] = []
+    for char in sanitized:
+        code = ord(char)
+        if 32 <= code <= 126:
+            out.append(char)
+        elif 0xDC80 <= code <= 0xDCFF:
+            out.append(f"\\x{code - 0xDC00:02x}")
+        else:
+            out.append(f"\\u{code:04x}")
+    return "".join(out)
 
 
 def _sanitize_for_reporting(value: str) -> str:

@@ -128,6 +128,10 @@ NOISE_PRONE_PATTERN_SOURCES: frozenset[str] = frozenset(
         _TEMPLATE_DOLLAR_BRACE_CALL_RE,
         _SSTI_HASH_BRACE_SHAPE_RE,
         _LDAP_PAREN_CONJUNCTION_RE,
+        # SQLi comment terminators span arbitrary whitespace between the quote
+        # and the -- / # terminator, so they routinely fire inside text-decoded
+        # binary bodies (e.g. "'\n--" byte runs in compressed payloads).
+        _SQLI_COMMENT_TERMINATOR_RE,
     }
 )
 
