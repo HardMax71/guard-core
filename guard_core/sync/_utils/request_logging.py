@@ -11,8 +11,8 @@ from guard_core.sync._utils.ip_extraction import (
     _canonicalize_ip,
 )
 from guard_core.sync._utils.logging_utils import (
-    _log_at_level,
     _json_depth_cap_hit,
+    _log_at_level,
     _redact_sensitive_json,
 )
 from guard_core.sync._utils.pair_redaction import (

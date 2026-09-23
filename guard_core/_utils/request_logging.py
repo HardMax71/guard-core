@@ -8,8 +8,8 @@ from urllib.parse import quote, unquote, urlsplit, urlunsplit
 from guard_core._utils.block_events import fire_block_hook
 from guard_core._utils.ip_extraction import UNKNOWN_CLIENT_IDENTITY, _canonicalize_ip
 from guard_core._utils.logging_utils import (
-    _log_at_level,
     _json_depth_cap_hit,
+    _log_at_level,
     _redact_sensitive_json,
 )
 from guard_core._utils.pair_redaction import (
