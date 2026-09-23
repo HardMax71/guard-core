@@ -5,8 +5,17 @@ All notable changes to this project will be documented in this file.
 
 ___
 
-Unreleased
-----------
+v4.0.4 (2026-09-23)
+-------------------
+
+Binary-noise follow-up: SQLi comment-terminator gate, console-safe detection logs, depth-capped display redaction (v4.0.4)
+---------------------------------------------------------------------------------------------------------------------------
+
+### Fixed
+
+- **PDF and text-decoded binary uploads were flagged as SQLi.** The SQLi comment-terminator pattern source (an apostrophe followed by a whitespace run before ``--`` or ``#`` at end of line) matched byte runs such as 0x27 0x0A 0x2D 0x2D inside binary-decoded content (PDF comment lines, compressed streams). The source had no semantic validator and was absent from ``NOISE_PRONE_PATTERN_SOURCES``, so the 4.0.3 binary-density gate did not cover it. It is now gated: matches in binary-dense regions are discarded, ASCII-region matches still detect, and the truthful-registry test gains an exemption for trigram-shaped sources that cannot occur in pure random noise.
+- **Detection log lines could raise UnicodeEncodeError on Windows cp1252 consoles** (observed on Python 3.14) when raw body previews carried non-ASCII bytes. ``_sanitize_for_log`` now emits pure ASCII: ``\xNN`` for surrogate-escaped bytes, ``\uXXXX`` for every other non-ASCII character.
+- **Deep-nested JSON in headers produced huge half-redacted log values.** When the JSON display-redaction depth cap trips, the whole value now collapses to ``[REDACTED]`` (detection and body scans keep their capped-subtree semantics).
 
 ___
 
