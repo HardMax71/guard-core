@@ -52,14 +52,10 @@ from typing import Any
 
 GUARD_CORE_ROOT = Path(__file__).resolve().parent.parent
 GO_ROOT = Path(
-    os.environ.get(
-        "GUARD_CORE_GO_ROOT", GUARD_CORE_ROOT.parent / "guard-core-go"
-    )
+    os.environ.get("GUARD_CORE_GO_ROOT", GUARD_CORE_ROOT.parent / "guard-core-go")
 )
 PHP_ROOT = Path(
-    os.environ.get(
-        "GUARD_CORE_PHP_ROOT", GUARD_CORE_ROOT.parent / "guard-core-php"
-    )
+    os.environ.get("GUARD_CORE_PHP_ROOT", GUARD_CORE_ROOT.parent / "guard-core-php")
 )
 _MULTIPART_FIELD_CONTEXT = "request_body:multipart_field"
 _NOISE_SIZE = 262144
@@ -119,9 +115,7 @@ def _vectors() -> list[tuple[str, str]]:
     vectors: list[tuple[str, str]] = []
     for seed in _NOISE_SEEDS:
         for decoding in _DECODED_VIEWS:
-            vectors.append(
-                (f"noise_{seed}_{decoding}", _decoded_noise(seed, decoding))
-            )
+            vectors.append((f"noise_{seed}_{decoding}", _decoded_noise(seed, decoding)))
     vectors.append(
         (
             "zip_upload",
@@ -176,8 +170,7 @@ def _compare(
     diffs: list[str] = []
     if bool(py_verdict["is_threat"]) != bool(engine_verdict["is_threat"]):
         diffs.append(
-            f"is_threat {py_verdict['is_threat']} != "
-            f"{engine_verdict['is_threat']}"
+            f"is_threat {py_verdict['is_threat']} != {engine_verdict['is_threat']}"
         )
     py_score = round(py_verdict["threat_score"], 6)
     engine_score = round(engine_verdict["threat_score"], 6)
@@ -197,11 +190,9 @@ def _compare(
     return []
 
 
-def _run_go_probe(vectors: list[dict[str, Any]]) -> dict[str, Any]:
+def _run_go_probe(vectors: list[dict[str, Any]]) -> list[dict[str, Any]]:
     input_path = GUARD_CORE_ROOT / "interop" / "reports" / "go_probe_input.json"
-    output_path = (
-        GUARD_CORE_ROOT / "interop" / "reports" / "go_probe_output.json"
-    )
+    output_path = GUARD_CORE_ROOT / "interop" / "reports" / "go_probe_output.json"
     input_path.write_text(json.dumps(vectors, indent=2))
     command = [
         "docker",
@@ -236,16 +227,13 @@ def _run_go_probe(vectors: list[dict[str, Any]]) -> dict[str, Any]:
             f"go probe exited {result.returncode}: "
             f"{(result.stdout + result.stderr)[-2000:]}"
         )
-    return json.loads(output_path.read_text())
+    verdicts: list[dict[str, Any]] = json.loads(output_path.read_text())
+    return verdicts
 
 
-def _run_php_probe(vectors: list[dict[str, Any]]) -> dict[str, Any]:
-    input_path = (
-        GUARD_CORE_ROOT / "interop" / "reports" / "php_probe_input.json"
-    )
-    output_path = (
-        GUARD_CORE_ROOT / "interop" / "reports" / "php_probe_output.json"
-    )
+def _run_php_probe(vectors: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    input_path = GUARD_CORE_ROOT / "interop" / "reports" / "php_probe_input.json"
+    output_path = GUARD_CORE_ROOT / "interop" / "reports" / "php_probe_output.json"
     input_path.write_text(json.dumps(vectors, indent=2))
     command = [
         "docker",
@@ -271,7 +259,8 @@ def _run_php_probe(vectors: list[dict[str, Any]]) -> dict[str, Any]:
             f"php probe exited {result.returncode}: "
             f"{(result.stdout + result.stderr)[-2000:]}"
         )
-    return json.loads(output_path.read_text())
+    verdicts: list[dict[str, Any]] = json.loads(output_path.read_text())
+    return verdicts
 
 
 async def _py_verdicts() -> dict[str, dict[str, Any]]:
@@ -333,15 +322,11 @@ def main() -> int:
             ("go", go_verdicts),
             ("php", php_verdicts),
         ):
-            match = next(
-                (v for v in engine_verdicts if v["label"] == label), None
-            )
+            match = next((v for v in engine_verdicts if v["label"] == label), None)
             if match is None:
                 diffs.append(f"{engine}: no verdict returned")
                 continue
-            diffs.extend(
-                _compare(py_verdict, match, engine, unmapped[label])
-            )
+            diffs.extend(_compare(py_verdict, match, engine, unmapped[label]))
         entry_report = {
             "label": label,
             "payload_b64_bytes": len(entry["payload_b64"]),
@@ -359,9 +344,7 @@ def main() -> int:
     report["elapsed_s"] = round(time.monotonic() - started, 2)
     reports = Path(__file__).parent / "reports"
     reports.mkdir(exist_ok=True)
-    (reports / "go_php_binary_vectors.json").write_text(
-        json.dumps(report, indent=2)
-    )
+    (reports / "go_php_binary_vectors.json").write_text(json.dumps(report, indent=2))
     total = report["green"] + report["red"]
     print(f"\ntotal: {report['green']}/{total} vectors green in {report['elapsed_s']}s")
     print("RESULT:", "GREEN" if report["red"] == 0 else "RED")

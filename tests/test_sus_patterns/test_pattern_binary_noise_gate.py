@@ -5,7 +5,7 @@ import zipfile
 
 import pytest
 
-from guard_core.handlers import _suspatterns_regex
+from guard_core.handlers import _suspatterns_regex, _suspatterns_sources
 from guard_core.handlers._suspatterns_pattern_table import (
     NOISE_PRONE_PATTERN_SOURCES,
 )
@@ -212,4 +212,85 @@ async def test_noise_prone_registry_is_truthful(
                 _decoded_noise(seed, decoding),
             )
             matched_sources.update(t["pattern"] for t in result["threats"])
-    assert NOISE_PRONE_PATTERN_SOURCES <= matched_sources
+    # Sources whose shape requires a specific trigram/terminator run (e.g. the
+    # SQLi comment terminator "'\n--") cannot be expected to occur in pure
+    # random noise; their registry membership and suppression are covered by
+    # dedicated tests below.
+    trigram_shaped_sources = {
+        _suspatterns_sources._SQLI_COMMENT_TERMINATOR_RE,
+    }
+    assert NOISE_PRONE_PATTERN_SOURCES - trigram_shaped_sources <= matched_sources
+    assert (
+        _suspatterns_sources._SQLI_COMMENT_TERMINATOR_RE in NOISE_PRONE_PATTERN_SOURCES
+    )
+
+
+_PDF_BINARY_PREFIX = (
+    b"%PDF-1.4\n%\xc7\x8f\xa2\n7 0 obj\n<</Length 8 0 R/Filter /FlateDecode>>\nstream\n"
+)
+_SQLI_TERMINATOR_IN_BINARY = b"'\n--"
+
+
+@pytest.mark.asyncio
+async def test_pdf_comment_line_with_sqli_terminator_bytes_not_flagged(
+    sus_patterns_manager_with_detection: SusPatternsManager,
+) -> None:
+    """A PDF header whose binary comment region contains an apostrophe, a
+    newline and dashes must not be reported as SQLi (regression for the
+    real-world 558KB-PDF false positive)."""
+    buffer = bytearray(_PDF_BINARY_PREFIX)
+    buffer += _noise_bytes(seed=11)[:2000]
+    buffer[100:104] = _SQLI_TERMINATOR_IN_BINARY
+    payload = bytes(buffer).decode("utf-8", errors="surrogateescape")
+
+    result = await _detect(sus_patterns_manager_with_detection, payload)
+
+    assert result["is_threat"] is False
+    assert result["threats"] == []
+
+
+@pytest.mark.asyncio
+async def test_ascii_sqli_comment_terminator_outside_binary_still_detected(
+    sus_patterns_manager_with_detection: SusPatternsManager,
+) -> None:
+    """The noise gate must not swallow genuine ASCII SQLi comment terminators."""
+    payload = "users?name=1=1' \n-- drop table users"
+
+    result = await _detect(sus_patterns_manager_with_detection, payload)
+
+    assert result["is_threat"] is True
+    assert any(t.get("category") == "sqli" for t in result["threats"])
+
+
+@pytest.mark.asyncio
+async def test_sqli_comment_terminator_source_is_noise_gated(
+    sus_patterns_manager_with_detection: SusPatternsManager,
+) -> None:
+    """The SQLi comment-terminator source is registered as noise-prone: a match
+    whose neighborhood is binary-dense must be dropped by _build_regex_threat,
+    while the same match in ASCII surroundings survives (covered by the
+    still_detected test below)."""
+    import re as _re
+
+    from guard_core.detection_engine.binary_prefix import build_binary_prefix
+    from guard_core.handlers import _suspatterns_regex as regex_module
+    from guard_core.handlers._suspatterns_sources import (
+        _SQLI_COMMENT_TERMINATOR_RE,
+    )
+
+    dense_noise = _decoded_noise(seed=11, decoding="utf-8-surrogateescape")[:200]
+    text = "abc \n" + "' \n--" + dense_noise
+    compiled = _re.compile(_SQLI_COMMENT_TERMINATOR_RE)
+    match = compiled.search(text)
+    assert match is not None
+
+    binary_prefix = build_binary_prefix(text)
+    threat = regex_module._build_regex_threat(
+        compiled,
+        match,
+        "sqli",
+        time.monotonic(),
+        "request_body",
+        binary_prefix=binary_prefix,
+    )
+    assert threat is None

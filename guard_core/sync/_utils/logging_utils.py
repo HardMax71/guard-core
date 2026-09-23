@@ -1,3 +1,4 @@
+import contextvars
 import json
 import logging
 from typing import Any
@@ -8,16 +9,35 @@ logger = logging.getLogger("guard_core")
 
 _JSON_LEAF_START_CHARS = frozenset("{[")
 
+# Set while a redaction traversal collapses a container at the JSON depth
+# cap; the display path uses it to redact the whole value instead of
+# emitting a huge half-redacted structure (see request_logging).
+_json_depth_cap_hit: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "guard_core_redaction_json_depth_cap_hit", default=False
+)
+
 
 def _sanitize_for_log(value: str) -> str:
+    r"""Make a string safe to emit on any console encoding.
+
+    Control characters become ``\xNN`` escapes and every non-ASCII character
+    becomes a ``\uXXXX`` (or ``\xNN`` for surrogate-escaped bytes) escape, so
+    the result is pure ASCII and can never raise ``UnicodeEncodeError`` on
+    legacy code pages such as Windows cp1252.
+    """
     if not value:
         return value
     sanitized = value.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
-    sanitized = "".join(
-        char if ord(char) >= 32 or char in "\t\n\r" else f"\\x{ord(char):02x}"
-        for char in sanitized
-    )
-    return sanitized
+    out: list[str] = []
+    for char in sanitized:
+        code = ord(char)
+        if 32 <= code <= 126:
+            out.append(char)
+        elif 0xDC80 <= code <= 0xDCFF:
+            out.append(f"\\x{code - 0xDC00:02x}")
+        else:
+            out.append(f"\\u{code:04x}")
+    return "".join(out)
 
 
 def _sanitize_for_reporting(value: str) -> str:
@@ -97,6 +117,7 @@ def _redact_json_child(
         return item
     child_depth = depth + 1
     if child_depth >= max_depth:
+        _json_depth_cap_hit.set(True)
         return "[REDACTED]"
     child: Any = {} if isinstance(item, dict) else []
     stack.append((item, child, child_depth))

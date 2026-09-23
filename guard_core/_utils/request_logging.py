@@ -7,7 +7,11 @@ from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 from guard_core._utils.block_events import fire_block_hook
 from guard_core._utils.ip_extraction import UNKNOWN_CLIENT_IDENTITY, _canonicalize_ip
-from guard_core._utils.logging_utils import _log_at_level, _redact_sensitive_json
+from guard_core._utils.logging_utils import (
+    _log_at_level,
+    _json_depth_cap_hit,
+    _redact_sensitive_json,
+)
 from guard_core._utils.pair_redaction import (
     _bounded_percent_decode,
     _redact_pairs_in_text,
@@ -62,9 +66,12 @@ def _json_redact_text(
         parsed = json.loads(text)
         if not isinstance(parsed, dict | list):
             return None
+        _json_depth_cap_hit.set(False)
         redacted = _redact_sensitive_json(
             parsed, sensitive, sensitive_body_fields, max_depth
         )
+        if _json_depth_cap_hit.get():
+            return "[REDACTED]"
         if redacted == parsed:
             return None
         return json.dumps(redacted, separators=(",", ":"), ensure_ascii=False)

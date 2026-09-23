@@ -1892,3 +1892,22 @@ def test_redact_header_value_for_display_pair_after_space_redacted() -> None:
 def test_redact_header_value_for_display_pair_after_tab_redacted() -> None:
     result = redact_header_value_for_display("x\ttoken=SECRET", None, None)
     assert result == "x\ttoken=[REDACTED]"
+
+
+def test_sanitize_for_log_output_is_ascii_and_cp1252_safe() -> None:
+    """_sanitize_for_log must produce pure ASCII so detection log lines can
+    never raise UnicodeEncodeError on legacy consoles (Windows cp1252)."""
+    from guard_core._utils.logging_utils import _sanitize_for_log
+
+    pdf_with_binary = (
+        b"%PDF-1.4\n%\xc7\x8f\xa2\n7 0 obj\n<</Length 8 0 R/Filter /FlateDecode>>"
+    )
+    value = pdf_with_binary.decode("utf-8", errors="surrogateescape")
+
+    sanitized = _sanitize_for_log(value)
+
+    sanitized.encode("cp1252")  # must not raise
+    sanitized.encode("ascii")  # must not raise
+    assert "\n" not in sanitized
+    assert "\\x9c" in sanitized or "\\u" in sanitized
+    assert _sanitize_for_log("plain ascii 123") == "plain ascii 123"
