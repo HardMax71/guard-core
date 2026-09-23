@@ -1,3 +1,4 @@
+import contextvars
 import json
 import logging
 from typing import Any
@@ -7,6 +8,13 @@ from guard_core._utils.pair_value_scan import _bounded_percent_decode
 logger = logging.getLogger("guard_core")
 
 _JSON_LEAF_START_CHARS = frozenset("{[")
+
+# Set while a redaction traversal collapses a container at the JSON depth
+# cap; the display path uses it to redact the whole value instead of
+# emitting a huge half-redacted structure (see request_logging).
+_json_depth_cap_hit: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "guard_core_redaction_json_depth_cap_hit", default=False
+)
 
 
 def _sanitize_for_log(value: str) -> str:
@@ -109,6 +117,7 @@ def _redact_json_child(
         return item
     child_depth = depth + 1
     if child_depth >= max_depth:
+        _json_depth_cap_hit.set(True)
         return "[REDACTED]"
     child: Any = {} if isinstance(item, dict) else []
     stack.append((item, child, child_depth))
