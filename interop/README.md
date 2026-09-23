@@ -87,3 +87,20 @@ scan the same payloads in-process and their verdicts are compared. See
 the script docstring for the binding build steps and the surrogateescape
 mapping note. The runner exits 0 when every vector is green and writes
 `interop/reports/rust_binary_vectors.json`.
+
+## Go/PHP binary-body detect vectors
+
+`go_php_binary_vectors.py` proves that the Go and PHP engines (branch
+`fix/binary-noise-gate-4.0.3`) and the Python reference produce identical
+detect verdicts on binary-decoded request bodies: random noise, a zip
+upload, attacks in plain and padded forms, and plain/accented/non-Latin
+text controls. Payloads mirror the honesty suite classes from
+`tests/test_sus_patterns/test_pattern_binary_noise_gate.py`. No Redis: the
+detect stage is pure; the Go and PHP participants run inside their official
+docker images against the ports' checkouts (paths default to the sibling
+checkouts, override with `GUARD_CORE_GO_ROOT` / `GUARD_CORE_PHP_ROOT`).
+
+```bash
+GUARD_CORE_GO_ROOT=../guard-core-go GUARD_CORE_PHP_ROOT=../guard-core-php \
+    uv run python interop/go_php_binary_vectors.py
+```
