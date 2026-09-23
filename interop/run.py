@@ -173,7 +173,7 @@ def run_phase(phase: str, incoming: dict[str, Any]) -> dict[str, Any]:
         )
     if not report_path.exists():
         raise SystemExit(f"phase {phase} did not write {report_path}")
-    report = json.loads(report_path.read_text())
+    report: dict[str, Any] = json.loads(report_path.read_text())
     print(
         f"phase {phase}: {report['passed']}/{report['passed'] + report['failed']} "
         f"green in {elapsed:.1f}s"

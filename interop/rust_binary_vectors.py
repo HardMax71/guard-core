@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import io
 import json
 import os
 import random
@@ -44,6 +45,7 @@ import sys
 import time
 import zipfile
 from pathlib import Path
+from typing import Any
 
 GUARD_CORE_RS_SO = os.environ.get("GUARD_CORE_RS_SO")
 _MULTIPART_FIELD_CONTEXT = "request_body:multipart_field"
@@ -92,7 +94,7 @@ def _decoded_noise(seed: int, decoding: str) -> str:
 
 
 def _zip_bytes(seed: int) -> bytes:
-    buffer = __import__("io").BytesIO()
+    buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
         archive.writestr("attachment.bin", _noise_bytes(seed)[:50000])
     return buffer.getvalue()
@@ -128,7 +130,7 @@ def _vectors() -> list[tuple[str, str, bool]]:
     return vectors
 
 
-def _rust_payload(payload: str) -> str:
+def _rust_payload(payload: str) -> tuple[str, bool]:
     """Map a Python surrogateescape string into the Rust engine's str world.
 
     The reference decodes request bytes with surrogateescape, so undecodable
@@ -146,7 +148,7 @@ def _rust_payload(payload: str) -> str:
         ), False
 
 
-def _load_rust_binding():
+def _load_rust_binding() -> Any:
     if not GUARD_CORE_RS_SO:
         print(
             "GUARD_CORE_RS_SO not set; build the guard-core-rs detect binding",
@@ -154,6 +156,9 @@ def _load_rust_binding():
         )
         return None
     spec = importlib.util.spec_from_file_location("guard_core_rs", GUARD_CORE_RS_SO)
+    if spec is None or spec.loader is None:
+        print(f"cannot load module spec from {GUARD_CORE_RS_SO}", file=sys.stderr)
+        return None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -214,7 +219,7 @@ def main() -> int:
     )
     manager = SusPatternsManager(config)
 
-    report = {"vectors": [], "green": 0, "red": 0}
+    report: dict[str, Any] = {"vectors": [], "green": 0, "red": 0}
     started = time.monotonic()
 
     async def _detect(payload: str) -> dict:
