@@ -77,3 +77,13 @@ the others, and all values carry non-integer fractions (microseconds).
 - `cloud_ip_v2` payloads are byte-exact across all three writers since the
   PHP port adopted Python's `", "` list separators (same category as the
   earlier JSON_UNESCAPED_SLASHES fix).
+
+## Rust binary-body vectors
+
+`interop/rust_binary_vectors.py` proves rust == python 4.0.3 on
+binary-decoded request bodies without Redis: the Python reference and the
+guard-core-rs engine (built from branch fix/binary-noise-gate-4.0.3)
+scan the same payloads in-process and their verdicts are compared. See
+the script docstring for the binding build steps and the surrogateescape
+mapping note. The runner exits 0 when every vector is green and writes
+`interop/reports/rust_binary_vectors.json`.
