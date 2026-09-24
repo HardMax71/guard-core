@@ -1,6 +1,13 @@
 from typing import Any
 
-from guard_core.sync._utils.detection_scan import _scan_component_name
+from guard_core.sync._utils.detection_scan import (
+    _binary_island_min_run_length,
+    _scan_component_name,
+)
+from guard_core.sync.detection_engine.binary_islands import (
+    extract_binary_islands,
+    value_is_binary_like,
+)
 
 _FORM_FIELD_CONTEXT = "request_body:form_field"
 _MULTIPART_FIELD_CONTEXT = "request_body:multipart_field"
@@ -52,6 +59,27 @@ def _scan_form_body(
     return False, "", []
 
 
+def _island_payload_entries(
+    exclusion_key: str | None, label: str, payload: str
+) -> list[tuple[str | None, str, str]]:
+    return [
+        (exclusion_key, label, island)
+        for island in extract_binary_islands(payload, _binary_island_min_run_length())
+    ]
+
+
+def _part_payload_entries(
+    exclusion_key: str | None, label: str, filename: str | None, payload: Any
+) -> list[tuple[str | None, str, str]]:
+    if not isinstance(payload, str):
+        return []
+    if filename is not None and value_is_binary_like(payload):
+        return _island_payload_entries(exclusion_key, label, payload)
+    if not payload:
+        return []
+    return [(exclusion_key, label, payload)]
+
+
 def _multipart_part_entries(part: Any) -> list[tuple[str | None, str, str]]:
     entries: list[tuple[str | None, str, str]] = []
     name = part.get_param("name", header="content-disposition")
@@ -63,9 +91,11 @@ def _multipart_part_entries(part: Any) -> list[tuple[str | None, str, str]]:
         entries.append((exclusion_key, label, f'filename="{sanitized_filename}"'))
     for header_name, header_value in part.items():
         entries.append((exclusion_key, label, f"{header_name}: {header_value}"))
-    payload = getattr(part, "_payload", None)
-    if isinstance(payload, str):
-        entries.append((exclusion_key, label, payload))
+    entries.extend(
+        _part_payload_entries(
+            exclusion_key, label, filename, getattr(part, "_payload", None)
+        )
+    )
     return entries
 
 

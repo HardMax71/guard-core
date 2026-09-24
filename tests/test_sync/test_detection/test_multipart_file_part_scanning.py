@@ -499,20 +499,25 @@ def test_malicious_filename_still_detected_with_binary_content() -> None:
     assert result.threat_categories == ["file_upload"]
 
 
-def test_multipart_text_parts_includes_binary_content_alongside_filename() -> None:
+def test_multipart_text_parts_reduces_binary_content_to_printable_islands() -> None:
     binary_blob = (bytes(range(256)) * 100).decode("latin-1")
     raw_body = _file_part_body("photo.jpg", binary_blob).decode()
     parts = _multipart_text_parts(raw_body, _CONTENT_TYPE)
-    assert parts == [
-        ("file", "file", 'filename="photo.jpg"'),
-        (
-            "file",
-            "file",
-            'Content-Disposition: form-data; name="file"; filename="photo.jpg"',
-        ),
-        ("file", "file", "Content-Type: application/octet-stream"),
-        ("file", "file", binary_blob),
-    ]
+    ascii_run = "".join(chr(c) for c in range(0x20, 0x7F))
+    latin_run = "".join(chr(c) for c in range(0xA1, 0x100))
+    assert (
+        parts
+        == [
+            ("file", "file", 'filename="photo.jpg"'),
+            (
+                "file",
+                "file",
+                'Content-Disposition: form-data; name="file"; filename="photo.jpg"',
+            ),
+            ("file", "file", "Content-Type: application/octet-stream"),
+        ]
+        + [("file", "file", ascii_run), ("file", "file", latin_run)] * 100
+    )
 
 
 def _png_bytes(n: int = 4000) -> bytes:
@@ -610,3 +615,16 @@ def test_padded_webshell_detected_with_majority_binary_padding() -> None:
     request = _body_request(_file_part_body("shell.jpg", content), _CONTENT_TYPE)
     result = detect_penetration_attempt(request, _CONFIG)
     assert result.is_threat is True
+
+
+def test_empty_payload_file_part_yields_no_payload_entries() -> None:
+    from guard_core.sync._utils.body_form_scan import _part_payload_entries
+
+    assert _part_payload_entries("file", "file", "empty.bin", "") == []
+    assert _part_payload_entries(None, "file", None, "") == []
+
+
+def test_empty_file_part_content_not_detected() -> None:
+    request = _body_request(_file_part_body("empty.bin", ""), _CONTENT_TYPE)
+    result = detect_penetration_attempt(request, _CONFIG)
+    assert result.is_threat is False
