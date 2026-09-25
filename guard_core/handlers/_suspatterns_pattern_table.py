@@ -771,3 +771,11 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (r'E:\d+:"', _CTX_DESERIALIZATION, "deserialization"),
     (r"<ObjectDataProvider\b", _CTX_DESERIALIZATION, "deserialization"),
 ]
+
+# Whole-value recon rows whose leading path separator is optional: outside a URL
+# path they match bare words such as "default" or "README.md", not only probe paths.
+RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES: frozenset[str] = frozenset(
+    source
+    for source, _contexts, category in _PATTERN_DEFINITIONS
+    if category == "recon" and source.startswith(_TOP_LEVEL_PATH_PREFIX_RE)
+)
