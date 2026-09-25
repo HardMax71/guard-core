@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
-"""Go == PHP == Python 4.0.3 binary-body detect vectors.
+"""Go == PHP == Python binary-body and recon detect vectors.
 
-Proves that the guard-core-go and guard-core-php engines (branch
-fix/binary-noise-gate-4.0.3) and the Python reference (guard-core 4.0.3, the
-binary-body noise gate from commit 436d6f72) produce identical detect
-verdicts on binary-decoded request bodies: random noise, a zip upload,
-attacks in plain and padded forms, and plain/accented/non-Latin text
-controls.
+Proves that the guard-core-go and guard-core-php engines and the Python
+reference produce identical detect verdicts on binary-decoded request
+bodies: random noise, a zip upload, attacks in plain and padded forms, and
+plain/accented/non-Latin text controls. A second group pins the recon
+leading-separator rule from upstream PR #116: bare query/body words are not
+probes, separator-prefixed probe paths in query/body values and bare words
+used as the URL path still are, and the ':embedded_json' leaf contexts
+follow their parent context.
 
 The payloads are the same classes (and, for the noise seeds, the same
 bytes) as guard-core's tests/test_sus_patterns/
 test_pattern_binary_noise_gate.py honesty suite.
+
+Each vector carries a context (the detect context string); probes that
+receive an input without one keep treating "request_body:multipart_field"
+as the default.
 
 Run from the guard-core checkout (no Redis needed; the detect stage is
 pure). The Go and PHP participants run inside their official docker images
@@ -51,11 +57,12 @@ from pathlib import Path
 from typing import Any
 
 GUARD_CORE_ROOT = Path(__file__).resolve().parent.parent
+ECOSYSTEM_ROOT = GUARD_CORE_ROOT.parent.parent
 GO_ROOT = Path(
-    os.environ.get("GUARD_CORE_GO_ROOT", GUARD_CORE_ROOT.parent / "guard-core-go")
+    os.environ.get("GUARD_CORE_GO_ROOT", ECOSYSTEM_ROOT / "Golang" / "guard-core-go")
 )
 PHP_ROOT = Path(
-    os.environ.get("GUARD_CORE_PHP_ROOT", GUARD_CORE_ROOT.parent / "guard-core-php")
+    os.environ.get("GUARD_CORE_PHP_ROOT", ECOSYSTEM_ROOT / "PHP" / "guard-core-php")
 )
 _MULTIPART_FIELD_CONTEXT = "request_body:multipart_field"
 _NOISE_SIZE = 262144
@@ -88,6 +95,33 @@ _CONTROL_ONLY = (
     "\x7f" * 300,
 )
 
+# Recon leading-separator rule (upstream PR #116): whole-value recon rows
+# whose leading path separator is optional must not flag bare words in
+# query/body contexts, while separator-prefixed probe values in those
+# contexts and bare words used as the URL path stay recon. Expectations
+# pinned by tests/test_sus_patterns/test_recon_bare_word_context.py.
+_RECON_BARE_WORDS = (
+    "SAP",
+    "default",
+    "actuator",
+    "README.md",
+    "credentials.json",
+    "report.asp",
+)
+_RECON_PROBE_PAYLOADS = (
+    "/default.asp",
+    "/actuator/health",
+    "\\README.md",
+    "\\report.asp",
+    "\\2fdefault.asp",
+)
+_RECON_EMBEDDED_JSON_PAYLOADS = (
+    "default",
+    "SAP",
+    "/default.asp",
+    "\\README.md",
+)
+
 
 def _noise_bytes(seed: int) -> bytes:
     rng = random.Random(seed)
@@ -110,31 +144,69 @@ def _zip_bytes(seed: int) -> bytes:
     return buffer.getvalue()
 
 
-def _vectors() -> list[tuple[str, str]]:
-    """(label, payload) pairs covering the honesty-suite classes."""
-    vectors: list[tuple[str, str]] = []
+def _vectors() -> list[tuple[str, str, str]]:
+    """(label, payload, context) triples covering the vector classes."""
+    vectors: list[tuple[str, str, str]] = []
     for seed in _NOISE_SEEDS:
         for decoding in _DECODED_VIEWS:
-            vectors.append((f"noise_{seed}_{decoding}", _decoded_noise(seed, decoding)))
+            vectors.append(
+                (
+                    f"noise_{seed}_{decoding}",
+                    _decoded_noise(seed, decoding),
+                    _MULTIPART_FIELD_CONTEXT,
+                )
+            )
     vectors.append(
         (
             "zip_upload",
             _zip_bytes(seed=11).decode("utf-8", errors="surrogateescape"),
+            _MULTIPART_FIELD_CONTEXT,
         )
     )
     for i, payload in enumerate(_ATTACK_PAYLOADS):
-        vectors.append((f"attack_{i}", payload))
+        vectors.append((f"attack_{i}", payload, _MULTIPART_FIELD_CONTEXT))
     for i, sample in enumerate(_PLAIN_TEXT_SAMPLES):
-        vectors.append((f"text_{i}", sample))
-        vectors.append((f"text_backtick_{i}", f"{sample}; `rm -rf /`"))
-    vectors.append(("near_start", "../../../etc/passwd and more prose here"))
-    vectors.append(("near_end", "prose " * 30 + "../../../etc/passwd"))
-    vectors.append(("short_margin", "café '; DELETE FROM users;--"))
+        vectors.append((f"text_{i}", sample, _MULTIPART_FIELD_CONTEXT))
+        vectors.append(
+            (f"text_backtick_{i}", f"{sample}; `rm -rf /`", _MULTIPART_FIELD_CONTEXT)
+        )
+    vectors.append(
+        (
+            "near_start",
+            "../../../etc/passwd and more prose here",
+            _MULTIPART_FIELD_CONTEXT,
+        )
+    )
+    vectors.append(
+        ("near_end", "prose " * 30 + "../../../etc/passwd", _MULTIPART_FIELD_CONTEXT)
+    )
+    vectors.append(
+        ("short_margin", "café '; DELETE FROM users;--", _MULTIPART_FIELD_CONTEXT)
+    )
     for i, control_only in enumerate(_CONTROL_ONLY):
-        vectors.append((f"control_only_{i}", control_only))
+        vectors.append((f"control_only_{i}", control_only, _MULTIPART_FIELD_CONTEXT))
     for i, payload in enumerate(_BURIED_FRAGMENTS):
-        vectors.append((f"buried_{i}", payload))
+        vectors.append((f"buried_{i}", payload, _MULTIPART_FIELD_CONTEXT))
+
+    for payload in _RECON_BARE_WORDS:
+        label = f"recon_ls_bare_{_recon_label_suffix(payload)}"
+        vectors.append((f"{label}_qp", payload, "query_param"))
+        vectors.append((f"{label}_body", payload, "request_body"))
+    for payload in _RECON_PROBE_PAYLOADS:
+        label = f"recon_ls_probe_{_recon_label_suffix(payload)}"
+        vectors.append((f"{label}_qp", payload, "query_param"))
+    for payload in ("default", "SAP", "README.md", "report.asp"):
+        label = f"recon_ls_bare_{_recon_label_suffix(payload)}"
+        vectors.append((f"{label}_url", payload, "url_path"))
+    for payload in _RECON_EMBEDDED_JSON_PAYLOADS:
+        label = f"recon_ls_{_recon_label_suffix(payload)}"
+        vectors.append((f"{label}_qpjson", payload, "query_param:embedded_json"))
+        vectors.append((f"{label}_bodyjson", payload, "request_body:embedded_json"))
     return vectors
+
+
+def _recon_label_suffix(payload: str) -> str:
+    return payload.replace("\\", "bs_").replace("/", "sl_").replace(".", "_").lower()
 
 
 def _engine_payload(payload: str) -> tuple[str, bool]:
@@ -281,14 +353,9 @@ async def _py_verdicts() -> dict[str, dict[str, Any]]:
     SusPatternsManager._config = None
     manager = SusPatternsManager(config)
 
-    async def _detect(payload: str) -> dict[str, Any]:
-        return await manager.detect(
-            payload, "127.0.0.1", context=_MULTIPART_FIELD_CONTEXT
-        )
-
     verdicts: dict[str, dict[str, Any]] = {}
-    for label, payload in _vectors():
-        verdicts[label] = await _detect(payload)
+    for label, payload, context in _vectors():
+        verdicts[label] = await manager.detect(payload, "127.0.0.1", context=context)
     return verdicts
 
 
@@ -296,7 +363,7 @@ def main() -> int:
     started = time.monotonic()
     vectors = []
     unmapped: dict[str, bool] = {}
-    for label, payload in _vectors():
+    for label, payload, context in _vectors():
         engine_payload, unchanged = _engine_payload(payload)
         unmapped[label] = unchanged
         vectors.append(
@@ -305,6 +372,7 @@ def main() -> int:
                 "payload_b64": base64.b64encode(
                     engine_payload.encode("utf-8", "surrogatepass")
                 ).decode("ascii"),
+                "context": context,
             }
         )
 
@@ -329,6 +397,7 @@ def main() -> int:
             diffs.extend(_compare(py_verdict, match, engine, unmapped[label]))
         entry_report = {
             "label": label,
+            "context": entry["context"],
             "payload_b64_bytes": len(entry["payload_b64"]),
             "py_is_threat": bool(py_verdict["is_threat"]),
             "diffs": diffs,

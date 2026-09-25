@@ -95,10 +95,15 @@ mapping note. The runner exits 0 when every vector is green and writes
 detect verdicts on binary-decoded request bodies: random noise, a zip
 upload, attacks in plain and padded forms, and plain/accented/non-Latin
 text controls. Payloads mirror the honesty suite classes from
-`tests/test_sus_patterns/test_pattern_binary_noise_gate.py`. No Redis: the
+`tests/test_sus_patterns/test_pattern_binary_noise_gate.py`. A second
+group pins the recon leading-separator rule from upstream PR #116 across
+`query_param`, `request_body`, `url_path` and the `:embedded_json` leaf
+contexts; each vector carries its detect context, and probes default to
+`request_body:multipart_field` when an input vector has none. No Redis: the
 detect stage is pure; the Go and PHP participants run inside their official
-docker images against the ports' checkouts (paths default to the sibling
-checkouts, override with `GUARD_CORE_GO_ROOT` / `GUARD_CORE_PHP_ROOT`).
+docker images against the ports' checkouts (paths default to the ecosystem
+`Golang/guard-core-go` and `PHP/guard-core-php` checkouts, override with
+`GUARD_CORE_GO_ROOT` / `GUARD_CORE_PHP_ROOT`).
 
 ```bash
 GUARD_CORE_GO_ROOT=../guard-core-go GUARD_CORE_PHP_ROOT=../guard-core-php \
