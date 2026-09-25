@@ -18,6 +18,7 @@ from guard_core.sync.core.checks.implementations.suspicious_activity import (
 from guard_core.sync.core.checks.implementations.user_agent import UserAgentCheck
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.detection_result import DetectionResult
+from guard_core.sync.handlers.cloud_handler import cloud_handler
 
 EXEMPT_IP = "198.51.100.7"
 OTHER_IP = "203.0.113.9"
@@ -131,6 +132,26 @@ def test_route_require_ip_takes_over_as_it_does_for_the_whitelist() -> None:
 
     assert result is None
     assert (request.state.is_whitelisted, request.state.is_exempt) == (False, False)
+
+
+@pytest.mark.parametrize("ip_list", ["whitelist", "exempt_ips"])
+def test_global_cloud_block_still_applies_as_it_does_for_the_whitelist(
+    ip_list: str,
+) -> None:
+    with (
+        patch.object(cloud_handler, "is_cloud_ip", return_value=True),
+        patch.object(
+            cloud_handler,
+            "get_cloud_provider_details",
+            return_value=("AWS", "3.0.0.0/8"),
+        ),
+    ):
+        result = _ip_check(
+            _config(block_cloud_providers={"AWS"}, **{ip_list: [EXEMPT_IP]}),
+            _request(EXEMPT_IP),
+        )
+
+    assert result is not None
 
 
 def _run_twice(check: SecurityCheck, **request_fields: Any) -> tuple[Any, Any]:
