@@ -1,9 +1,31 @@
 import json
+from collections.abc import Iterator
 
 import pytest
 
+from guard_core.sync.handlers.suspatterns_handler import (
+    _LEGACY_DETECTION_STATE,
+    SusPatternsManager,
+    sus_patterns_handler,
+)
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
+
+
+@pytest.fixture(autouse=True)
+def _pin_legacy_detection_singleton() -> Iterator[None]:
+    # Earlier files in this directory reconfigure the singleton through their
+    # own finalizers, which run after the conftest's teardown restore; these
+    # tests assume the legacy unconfigured handler, so pin it before each test.
+    sus_patterns_handler._compiler = None
+    sus_patterns_handler._preprocessor = None
+    sus_patterns_handler._semantic_analyzer = None
+    sus_patterns_handler._performance_monitor = None
+    sus_patterns_handler._threat_score_threshold = 1.0
+    sus_patterns_handler._detection_state = _LEGACY_DETECTION_STATE
+    SusPatternsManager._config = None
+    yield
+
 
 # Ordinary field values that the whole-value recon rows match when the leading "/"
 # is optional: product names, enum values, file names.
