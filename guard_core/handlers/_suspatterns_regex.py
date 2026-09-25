@@ -34,6 +34,7 @@ from guard_core.handlers._suspatterns_matchers import (
 )
 from guard_core.handlers._suspatterns_pattern_table import (
     NOISE_PRONE_PATTERN_SOURCES,
+    RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES,
 )
 from guard_core.handlers._suspatterns_pickle import (
     _pickle_global_candidate_is_injection,
@@ -77,6 +78,7 @@ from guard_core.handlers._suspatterns_sources import (
     _WHERE_CLAUSE_RE,
     _XML_XXE_PUBLIC_EXTERNAL_DTD_RE,
     ALL_DETECTION_CATEGORIES,
+    _recon_path_value_is_probe,
     _source_extension_path_is_probe,
 )
 from guard_core.handlers._suspatterns_state import _DetectionState
@@ -286,6 +288,10 @@ def _build_regex_threat(
     for candidate, is_valid_threat in _CANDIDATE_REJECTION_VALIDATORS:
         if pattern.pattern == candidate and not is_valid_threat(match, context):
             return None
+    if pattern.pattern in RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES and not (
+        _recon_path_value_is_probe(match, context)
+    ):
+        return None
     if pattern.pattern in NOISE_PRONE_PATTERN_SOURCES and match_is_binary_dense(
         binary_prefix, match
     ):

@@ -257,7 +257,7 @@ Every pattern category runs only on the request contexts it is scoped to. A payl
 | `nosql` | `header`, `query_param`, `request_body`, `url_path` |
 | `path_traversal` | `header`, `query_param`, `request_body`, `url_path` |
 | `proto_pollution` | `header`, `query_param`, `request_body`, `url_path` |
-| `recon` | `query_param`, `request_body`, `url_path` |
+| `recon` | `query_param`, `request_body`, `url_path` (the whole-value path rows, whose leading separator is optional on a URL path, count on `query_param` and `request_body` only when the value starts with `/` or `\`) |
 | `sensitive_file` | `query_param`, `request_body`, `url_path` |
 | `sqli` | `header`, `query_param`, `request_body`, `url_path` (three noise-prone rows, the bare `ORDER BY n` terminator, the glued comment and the bare `EXEC sp_`/`xp_`, stay on `query_param` and `request_body`; a quote- or digit-prefixed `ORDER BY n` and a `;`- or quote-prefixed `EXEC` run everywhere) |
 | `ssrf` | `header`, `query_param`, `request_body`, `url_path` |
