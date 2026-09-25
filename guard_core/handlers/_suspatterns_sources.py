@@ -65,6 +65,15 @@ def _source_extension_path_is_probe(context: str) -> bool:
 
 _CTX_CMS_PROBING = frozenset({"url_path", "query_param", "request_body", "unknown"})
 _CTX_RECON = frozenset({"url_path", "query_param", "request_body", "unknown"})
+_RECON_BARE_PATH_CONTEXTS = frozenset({"url_path", "unknown"})
+
+
+def _recon_path_value_is_probe(match: re.Match, context: str) -> bool:
+    return context.split(":", 1)[0] in _RECON_BARE_PATH_CONTEXTS or (
+        match.group().startswith(("/", "\\"))
+    )
+
+
 _CTX_PROTO_POLLUTION = frozenset(
     {"query_param", "header", "url_path", "request_body", "unknown"}
 )
