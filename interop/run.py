@@ -8,8 +8,13 @@ from typing import Any
 GUARD_CORE_ROOT = Path(__file__).resolve().parent.parent
 INTEROP_DIR = Path(__file__).resolve().parent
 REPORTS_DIR = INTEROP_DIR / "reports"
-GO_REPO = Path("/Users/renzof/Documents/GitHub/ZZZ/guard-core-go")
-PHP_REPO = Path("/Users/renzof/Documents/GitHub/ZZZ/guard-core-php")
+ECOSYSTEM_ROOT = GUARD_CORE_ROOT.parent.parent
+GO_REPO = Path(
+    os.environ.get("GUARD_CORE_GO_REPO", str(ECOSYSTEM_ROOT / "Golang" / "guard-core-go"))
+)
+PHP_REPO = Path(
+    os.environ.get("GUARD_CORE_PHP_REPO", str(ECOSYSTEM_ROOT / "PHP" / "guard-core-php"))
+)
 
 PREFIX = "guard_core_interop:"
 RATE_WINDOW = 120
