@@ -131,7 +131,10 @@ from guard_core.sync.handlers._suspatterns_matchers import (
     _template_hash_brace_scan_matches,
     _template_percent_keyword_scan_matches,
 )
-from guard_core.sync.handlers._suspatterns_pattern_table import _PATTERN_DEFINITIONS
+from guard_core.sync.handlers._suspatterns_pattern_table import (
+    _PATTERN_DEFINITIONS,
+    DETECTION_RECON_RAW_VIEW_PATTERN_SOURCES,
+)
 from guard_core.sync.handlers._suspatterns_pickle import (
     _PICKLE_REDUCE_OR_BUILD_KEYS,
     _PICKLE_SURROGATEESCAPE_HIGH,
@@ -384,6 +387,7 @@ __all__ = [
     "DETECTION_CATEGORY_WEIGHTS",
     "DETECTION_PATTERN_WEIGHT_OVERRIDES",
     "DETECTION_RAW_VIEW_PATTERN_SOURCES",
+    "DETECTION_RECON_RAW_VIEW_PATTERN_SOURCES",
     "DETECTION_URL_DECODED_VIEW_PATTERN_SOURCES",
     "SusPatternsManager",
     "_AMBIGUOUS_BACKTICK_INJECTION_CONTEXTS",
@@ -708,6 +712,27 @@ def _collect_threat_categories(threats: list[dict[str, Any]]) -> list[str]:
     return categories
 
 
+def _drop_view_duplicate_threats(
+    seen_threats: list[dict[str, Any]],
+    new_threats: list[dict[str, Any]],
+    new_matched: list[str],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    # Threats and matched patterns are parallel lists (one append per match), so
+    # a raw-view sighting of a pattern over text the processed views already
+    # matched is the same evidence and must not inflate the threat score.
+    seen = {(threat.get("pattern"), threat.get("match")) for threat in seen_threats}
+    kept_threats: list[dict[str, Any]] = []
+    kept_matched: list[str] = []
+    for threat, pattern in zip(new_threats, new_matched, strict=True):
+        key = (threat.get("pattern"), threat.get("match"))
+        if key in seen:
+            continue
+        seen.add(key)
+        kept_threats.append(threat)
+        kept_matched.append(pattern)
+    return kept_threats, kept_matched
+
+
 _BUILTIN_PATTERN_COMPILE_FLAGS = re.IGNORECASE
 
 
@@ -842,9 +867,12 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         raw_threats, raw_matched, raw_timeouts = self._check_raw_view_patterns(
             content, ip_address, context, correlation_id, enabled_categories, state
         )
+        raw_threats, raw_matched = _drop_view_duplicate_threats(
+            regex_threats, raw_threats, raw_matched
+        )
         regex_threats = regex_threats + raw_threats
         matched_patterns = matched_patterns + raw_matched
-        timeouts = timeouts + raw_timeouts
+        timeouts = timeouts + [t for t in raw_timeouts if t not in timeouts]
 
         decoded_view_threat = self._check_decoded_view_path_traversal(
             processed_content, content, context, enabled_categories, state

@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 
 ___
 
+[Unreleased]
+------------
+
+### Fixed
+
+- **Backslash-prefixed recon probes such as ``\default`` were invisible in every configured pipeline.** The preprocessing pipeline's LDAP hex escape decoder folds ``\de`` sequences into single characters before the pattern tables run, so a query or body value like ``\default`` arrived at the recon rows as ``Þfault`` and matched nothing; only the deprecated legacy unconfigured singleton (no preprocessor, raw values) saw them. The recon-category rows are now also scanned against the signal-preserving raw view (unicode normalization only, backslashes intact) in addition to the processed views, via a new ``DETECTION_RECON_RAW_VIEW_PATTERN_SOURCES`` set derived from the pattern table; the #116 leading-separator gate applies to raw-view matches exactly as everywhere else, so bare words (``default``, ``SAP``, ``README.md``) stay innocent in query and body contexts, separator-prefixed probes (``\default``, ``\README.md``, ``\report.asp``) detect again, url_path and unknown contexts are unchanged, and a row matching both the processed and the raw view on the same text is counted once instead of doubling the threat score. This is the reference fix for the cross-engine divergence documented in the 2026-09-25 detection audit; the Go, PHP, Rust and TypeScript ports copy the same view-membership change.
+
+___
+
 v4.0.5 (2026-09-24)
 -------------------
 

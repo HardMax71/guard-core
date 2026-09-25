@@ -779,3 +779,15 @@ RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES: frozenset[str] = frozenset(
     for source, _contexts, category in _PATTERN_DEFINITIONS
     if category == "recon" and source.startswith(_TOP_LEVEL_PATH_PREFIX_RE)
 )
+
+# Recon rows additionally scanned against the signal-preserving raw view. The
+# processed views fold LDAP hex escapes ("\de" -> "Þ") before the pattern
+# tables run, so separator-prefixed probes such as "\default" or
+# "\default.asp" never reach a recon row there. The raw view keeps them
+# intact; the leading-separator gate still decides which matches are probes,
+# so bare words stay innocent exactly as on the processed views.
+DETECTION_RECON_RAW_VIEW_PATTERN_SOURCES: frozenset[str] = frozenset(
+    source
+    for source, _contexts, category in _PATTERN_DEFINITIONS
+    if category == "recon"
+)
