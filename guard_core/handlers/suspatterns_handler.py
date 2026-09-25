@@ -733,6 +733,25 @@ def _drop_view_duplicate_threats(
     return kept_threats, kept_matched
 
 
+def _merge_raw_view_results(
+    threats: list[dict[str, Any]],
+    matched_patterns: list[str],
+    timeouts: list[str],
+    raw_results: tuple[list[dict[str, Any]], list[str], list[str]],
+) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    # The raw view rescans rows that already ran on the processed views, so a
+    # row matching both views on the same text must be reported once.
+    raw_threats, raw_matched, raw_timeouts = raw_results
+    raw_threats, raw_matched = _drop_view_duplicate_threats(
+        threats, raw_threats, raw_matched
+    )
+    return (
+        threats + raw_threats,
+        matched_patterns + raw_matched,
+        timeouts + [t for t in raw_timeouts if t not in timeouts],
+    )
+
+
 _BUILTIN_PATTERN_COMPILE_FLAGS = re.IGNORECASE
 
 
@@ -864,15 +883,12 @@ class SusPatternsManager(_SusPatternsViewsMixin):
             raw_view_only=False if state.preprocessor else None,
         )
 
-        raw_threats, raw_matched, raw_timeouts = await self._check_raw_view_patterns(
+        raw_view_results = await self._check_raw_view_patterns(
             content, ip_address, context, correlation_id, enabled_categories, state
         )
-        raw_threats, raw_matched = _drop_view_duplicate_threats(
-            regex_threats, raw_threats, raw_matched
+        regex_threats, matched_patterns, timeouts = _merge_raw_view_results(
+            regex_threats, matched_patterns, timeouts, raw_view_results
         )
-        regex_threats = regex_threats + raw_threats
-        matched_patterns = matched_patterns + raw_matched
-        timeouts = timeouts + [t for t in raw_timeouts if t not in timeouts]
 
         decoded_view_threat = await self._check_decoded_view_path_traversal(
             processed_content, content, context, enabled_categories, state
