@@ -122,6 +122,29 @@ _RECON_EMBEDDED_JSON_PAYLOADS = (
     "\\README.md",
 )
 
+# Raw-view recon scan group (upstream PR #121 and the port-side companions:
+# guard-core-go #16, guard-core-php #16, guard-core-ts #71,
+# guard-core-rs #21): the recon rows are admitted into the signal-preserving
+# raw view, so backslash-prefixed probe values now detect in every
+# CONFIGURED pipeline (the pre-campaign gap where all three engines
+# silently rewrote `\de` via the LDAP hex decoder and missed `\default`).
+# Expectations pinned by the live engine on the same input; LDAP-decoded
+# and double-escaped controls keep their verdicts.
+_RAWVIEW_BACKSLASH_PAYLOADS = (
+    "\\default",
+    "\\default.asp",
+    "\\2fdefault",
+    "\\5cdefault",
+    "\\de\\ad\\be\\ef",
+)
+_RAWVIEW_CONTEXTS = (
+    "query_param",
+    "request_body",
+    "url_path",
+    "request_body:multipart_field",
+    "request_body:form_field",
+)
+
 
 def _noise_bytes(seed: int) -> bytes:
     rng = random.Random(seed)
@@ -202,6 +225,17 @@ def _vectors() -> list[tuple[str, str, str]]:
         label = f"recon_ls_{_recon_label_suffix(payload)}"
         vectors.append((f"{label}_qpjson", payload, "query_param:embedded_json"))
         vectors.append((f"{label}_bodyjson", payload, "request_body:embedded_json"))
+
+    for payload in _RAWVIEW_BACKSLASH_PAYLOADS:
+        label = f"rawview_{_recon_label_suffix(payload)}"
+        for context in _RAWVIEW_CONTEXTS:
+            suffix = context.split(":")[-1] if ":" in context else context
+            suffix = {
+                "query_param": "qp",
+                "request_body": "body",
+                "url_path": "url",
+            }.get(context, suffix)
+            vectors.append((f"{label}_{suffix}", payload, context))
     return vectors
 
 

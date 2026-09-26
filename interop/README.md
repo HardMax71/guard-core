@@ -90,22 +90,87 @@ mapping note. The runner exits 0 when every vector is green and writes
 
 ## Go/PHP binary-body detect vectors
 
-`go_php_binary_vectors.py` proves that the Go and PHP engines (branch
-`fix/binary-noise-gate-4.0.3`) and the Python reference produce identical
-detect verdicts on binary-decoded request bodies: random noise, a zip
-upload, attacks in plain and padded forms, and plain/accented/non-Latin
-text controls. Payloads mirror the honesty suite classes from
-`tests/test_sus_patterns/test_pattern_binary_noise_gate.py`. A second
-group pins the recon leading-separator rule from upstream PR #116 across
-`query_param`, `request_body`, `url_path` and the `:embedded_json` leaf
-contexts; each vector carries its detect context, and probes default to
-`request_body:multipart_field` when an input vector has none. No Redis: the
-detect stage is pure; the Go and PHP participants run inside their official
-docker images against the ports' checkouts (paths default to the ecosystem
+`go_php_binary_vectors.py` proves that the Go and PHP engines and the Python
+reference produce identical detect verdicts on binary-decoded request bodies:
+random noise, a zip upload, attacks in plain and padded forms, and
+plain/accented/non-Latin text controls. Payloads mirror the honesty suite
+classes from `tests/test_sus_patterns/test_pattern_binary_noise_gate.py`. A
+second group pins the recon leading-separator rule from upstream PR #116
+across `query_param`, `request_body`, `url_path` and the `:embedded_json`
+leaf contexts; each vector carries its detect context, and probes default to
+`request_body:multipart_field` when an input vector has none. A third group
+pins the raw-view recon scan (upstream PR #121 and the port companions:
+guard-core-go #16, guard-core-php #16, guard-core-ts #71, guard-core-rs
+#21): backslash-prefixed probe values now detect in every configured
+pipeline across `query_param`, `request_body`, `url_path`,
+`request_body:form_field` and `request_body:multipart_field`, with the
+LDAP-decoded and double-escaped controls unchanged. No Redis: the detect
+stage is pure; the Go and PHP participants run inside their official docker
+images against the ports' checkouts (paths default to the ecosystem
 `Golang/guard-core-go` and `PHP/guard-core-php` checkouts, override with
 `GUARD_CORE_GO_ROOT` / `GUARD_CORE_PHP_ROOT`).
 
 ```bash
 GUARD_CORE_GO_ROOT=../guard-core-go GUARD_CORE_PHP_ROOT=../guard-core-php \
     uv run python interop/go_php_binary_vectors.py
+```
+
+## Body extraction differential (all five families)
+
+`extraction_differential.py` proves that every family's request-body value
+extractor derives the SAME scan surface from one body: the (value, context,
+forced-category) multiset and scan order are diffed pairwise against the
+Python reference for a corpus of 220 (body, content-type) pairs
+(`extraction_corpus.py`: ~70 crafted + 150 seeded random mutations covering
+form fields, multipart text/binary file parts, nested containers, JSON
+walks with mongo operator keys, depth-cap boundaries, number renderings,
+malformed bodies).
+
+Participants: Python in-process (`py_body_surface.py`, rebuilt from the
+engine's own helpers), Go via the tag-gated in-package probe
+(`probes/guardcore_body_probe_test.go`, docker `golang:1.25-alpine`), PHP
+via `probes/guardcore_body_probe.php` (docker `php:8.3-cli`), TS via
+`probes/guardcore_body_probe.test.ts` (a recording fake manager driven
+through the real `scanRequestWithManager` routing, local vitest), Rust via
+`probes/guardcore_rs_probe.rs` (a throwaway cargo project referencing the
+checkout by path). The probe files are mounted into the checkouts at run
+time (or copied into disposable clones); the audited detection code is
+exactly master.
+
+Normalizations applied before comparing (documented, first-hit-neutral):
+surrogateescape/U+FFFD representation mapping with U+FFFD runs collapsed,
+the engine's own context-gate normalization, scan lists truncated at the
+first forced (mongo-operator-key) walk hit, and the reference's per-entry
+multipart label re-scans collapsed (the ports scan the label once per part;
+both are first-hit-identical).
+
+```bash
+GUARD_EXTRACTION_GO_ROOT=../guard-core-go GUARD_EXTRACTION_PHP_ROOT=../guard-core-php \
+    GUARD_EXTRACTION_TS_ROOT=../guard-core-ts GUARD_EXTRACTION_RS_ROOT=../guard-core-rs \
+    uv run python interop/extraction_differential.py
+```
+
+## Body-surface detect vectors and middleware spot checks
+
+`body_detect_vectors.py` extends the suite with vectors that go through each
+family's real body surface (extraction plus per-value detection): backslash
+probes inside real bodies, bare-word innocence, island smuggling, mongo
+operator keys, embedded JSON leaves, and raw-text-spanning attacks on
+JSON-parsing values. Expectations are ALWAYS taken from the live Python
+engine (`detect_penetration_attempt`) on the same input.
+
+`middleware_spot_checks.py` drives ONE end-to-end blocked case (an attack
+smuggled inside a binary multipart file part) and ONE innocence case
+(`?system=SAP`) through each family's real middleware: Python's
+`SuspiciousActivityCheck`, Go's `suspiciousActivityCheck.Check`, PHP's
+`SuspiciousActivityCheck->check`, the TS `initializeSecurityMiddleware`
+pipeline, and the Rust tower `GuardLayer` service.
+
+```bash
+GUARD_EXTRACTION_GO_ROOT=../guard-core-go GUARD_EXTRACTION_PHP_ROOT=../guard-core-php \
+    GUARD_EXTRACTION_TS_ROOT=../guard-core-ts GUARD_EXTRACTION_RS_ROOT=../guard-core-rs \
+    uv run python interop/body_detect_vectors.py
+GUARD_EXTRACTION_GO_ROOT=../guard-core-go GUARD_EXTRACTION_PHP_ROOT=../guard-core-php \
+    GUARD_EXTRACTION_TS_ROOT=../guard-core-ts GUARD_EXTRACTION_RS_ROOT=../guard-core-rs \
+    uv run python interop/middleware_spot_checks.py
 ```
