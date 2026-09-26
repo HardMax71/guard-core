@@ -33,6 +33,7 @@ from guard_core.sync.handlers._suspatterns_matchers import (
     _quote_splice_finditer,
 )
 from guard_core.sync.handlers._suspatterns_pattern_table import (
+    DETECTION_RECON_RAW_VIEW_PATTERN_SOURCES,
     NOISE_PRONE_PATTERN_SOURCES,
     RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES,
 )
@@ -132,8 +133,13 @@ def _pattern_excluded_from_view(
     is_url_decoded_view_pattern = (
         pattern.pattern in DETECTION_URL_DECODED_VIEW_PATTERN_SOURCES
     )
+    is_recon_raw_view_pattern = (
+        pattern.pattern in DETECTION_RECON_RAW_VIEW_PATTERN_SOURCES
+    )
     if raw_view_only is True:
-        return is_url_decoded_view_pattern or not is_raw_view_pattern
+        return is_url_decoded_view_pattern or not (
+            is_raw_view_pattern or is_recon_raw_view_pattern
+        )
     if url_decoded_view_only is True:
         return is_raw_view_pattern or not is_url_decoded_view_pattern
     if raw_view_only is False:
